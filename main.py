@@ -124,7 +124,7 @@ class MainAppPage(QWidget):
         for row in deck:
             button = QPushButton(row[2])
             self.layout().addWidget(button, increment + 3, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
-            button.clicked.connect(self.flascard_page) #not implemented yet
+            button.clicked.connect(lambda checked=False, deck_id=row[0]: self.flashcard_page(deck_id)) #not implemented yet
             increment += 1
 
 
@@ -134,8 +134,63 @@ class MainAppPage(QWidget):
         self.stack.setCurrentIndex(2) 
 
 
-    def flascard_page(self):
-        pass  # Placeholder for flashcard page functionality, not implemented yet
+    def flashcard_page(self, deck_id):
+            self.window.deck_handler_page.set_deck_id(deck_id)
+            self.stack.setCurrentIndex(3)
+
+
+class DeckHandler(QWidget):
+    def __init__(self,stack,window):
+        super().__init__()
+        self.stack = stack
+        self.window = window
+        self.deck_id = None
+        self.cards = []
+        self.current_index = 0
+
+        layout = QGridLayout()
+        self.setLayout(layout)
+
+        self.card_label = QLabel("")
+        layout.addWidget(self.card_label, 0, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.flip_button = QPushButton("Show Answer")
+        self.flip_button.clicked.connect(self.toggle_answer)
+        layout.addWidget(self.flip_button, 1, 0, 1, 2)
+
+
+    def load_card(self, question, answer): #assings question and answer vars
+        self.question = question
+        self.answer = answer
+        self.showing_answer = False #sets bool of toggle
+        self.card_label.setText(self.question) #sets text to question first
+        self.flip_button.setText("Show Answer") #sets text
+
+    def toggle_answer(self):
+        self.showing_answer = not self.showing_answer #toggles true and false
+        if self.showing_answer == True:
+            self.card_label.setText(self.answer) #change text
+            self.flip_button.setText("Show Question") #change text
+        else:
+            self.card_label.setText(self.question) #same as above
+            self.flip_button.setText("Show Answer")
+
+    def set_deck_id(self, deck_id): #gets deck_id and initialises it to a variable in class
+        self.deck_id = deck_id
+        self.start_deck(deck_id)
+        #self.refresh_decks()
+
+    def start_deck(self, deck_id): #Gets q and as from database
+        flashcards = db.execute("SELECT * FROM flashcards WHERE deck_id = ?", (deck_id,)).fetchall()
+
+        for row in flashcards:
+            self.cards.append((row[2], row[3])) #store q and as in list
+ 
+        if self.cards: #if any cards
+            question, answer = self.cards[0] #sets pos cards = q and a as a tuple
+            self.load_card(question, answer) #sends both to be loaded and displayed
+        else:
+            self.card_label.setText("No flashcards")
 
 
 class CreateDeckPage(QWidget):
@@ -191,10 +246,12 @@ class Window(QWidget):
         self.login_page = LoginPage(self.stack, self)
         self.main_app_page = MainAppPage(self.stack, self)
         self.create_deck_page = CreateDeckPage(self.stack, self)
+        self.deck_handler_page = DeckHandler(self.stack, self)
 
         self.stack.addWidget(self.login_page)     
         self.stack.addWidget(self.main_app_page)   
         self.stack.addWidget(self.create_deck_page)
+        self.stack.addWidget(self.deck_handler_page)
 
         self.stack.setCurrentIndex(0) 
 
