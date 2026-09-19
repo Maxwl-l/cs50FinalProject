@@ -219,9 +219,18 @@ class DeckHandler(QWidget):
         self.add_button.clicked.connect(self.add_card)
         layout.addWidget(self.add_button, 2, 0, 1, 2)
 
+        self.edit_button = QPushButton("Edit Cards")
+        self.edit_button.clicked.connect(self.edit_cards)
+        layout.addWidget(self.edit_button, 3, 0, 1, 2)
+
         self.go_back = QPushButton("Return to Decks")
         self.go_back.clicked.connect(self.back)
-        layout.addWidget(self.go_back, 3, 0, 1, 2)
+        layout.addWidget(self.go_back, 4, 0, 1, 2)
+
+
+    def edit_cards(self,checked=False):
+        self.window.edit_cards_page.set_deck_id(self.deck_id)
+        self.stack.setCurrentIndex(5)
 
 
     def back(self, checked=False):
@@ -382,6 +391,164 @@ class CreateDeckPage(QWidget):
         self.stack.setCurrentIndex(1)
 
 
+class EditCards(QWidget):
+    def __init__(self, stack, window):
+        super().__init__()
+        self.stack = stack
+        self.window = window
+        self.deck_id = None
+
+        self.rename_inputs = {}
+        self.renameA_inputs = {}
+
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+
+        title = QLabel("Edit")
+        layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        cards = QLabel("cards:")
+        layout.addWidget(cards, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        cancel = QPushButton("Return")
+        cancel.clicked.connect(self.cancel)
+        layout.addWidget(cancel, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.scroll_content = QWidget()
+        self.deck_layout = QGridLayout()
+        self.scroll_content.setLayout(self.deck_layout)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidget(self.scroll_content)
+        scroll_area.setWidgetResizable(True) 
+
+        layout.addWidget(scroll_area)
+
+        self.refresh_decks()
+
+    def cancel(self):
+        self.stack.setCurrentIndex(3) 
+        self.window.deck_handler_page.set_deck_id(self.deck_id)
+
+
+    def refresh_decks(self):
+        # Start from the end of the layout and work backwards since removing items while iterating forward can mess up indexes
+        for i in range(self.deck_layout.count() - 1, -1, -1):
+            #-1 to get to the last index
+            #until greater than 2
+            #increment(decrement) -1
+            
+            # Get the widget item at this row,column position
+            item = self.deck_layout.takeAt(i)
+
+            # Get the actual widget inside that layout item
+            widget = item.widget()
+
+            # If there is a widget there then delete it
+            # deletes later as not to potential mess up the deletion process
+            if widget is not None:
+                widget.deleteLater()
+
+
+        cards = db.execute("SELECT * FROM flashcards WHERE deck_id = ?", (self.deck_id,)).fetchall()
+        print(f"self.deck_id = {self.deck_id}, found {len(cards)} cards: {cards}")
+
+        increment = 0
+        self.rename_inputs = {}
+        self.renameA_inputs = {}
+        
+        for row in cards:
+            card_id = row[0]
+
+            question = QPushButton(row[2])
+            answer = QPushButton(row[3])
+            delete = QPushButton("Delete Deck")
+            rename = QPushButton("Rename")
+            rename_input = QLineEdit()
+            renameA = QPushButton("Rename")
+            renameA_input = QLineEdit()
+
+            rename_input.setVisible(False)
+            renameA_input.setVisible(False)
+
+            grid_row = increment * 2
+
+            self.deck_layout.addWidget(delete, grid_row, 0, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.deck_layout.addWidget(question, grid_row, 1, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.deck_layout.addWidget(rename, grid_row, 2, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.deck_layout.addWidget(rename_input, grid_row, 3, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+
+            self.deck_layout.addWidget(answer, grid_row + 1, 1, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.deck_layout.addWidget(renameA, grid_row + 1, 2, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.deck_layout.addWidget(renameA_input, grid_row + 1, 3, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+
+            self.rename_inputs[card_id] = rename_input
+            self.renameA_inputs[card_id] = renameA_input
+
+            rename_input.returnPressed.connect(lambda card_id=card_id: self.confirm_rename(card_id,"q"))
+            renameA_input.returnPressed.connect(lambda card_id=card_id: self.confirm_rename(card_id,"a"))
+
+            rename.clicked.connect(lambda checked=False, card_id=card_id: self.reveal_rename(card_id,"q"))
+            renameA.clicked.connect(lambda checked=False, card_id=card_id: self.reveal_rename(card_id,"a"))
+
+            delete.clicked.connect(lambda checked=False, card_id=card_id: self.delete_deck(card_id))
+
+            increment += 1
+
+
+    def reveal_rename(self, card_id, type):
+        if type == "q":
+            inputQ = self.rename_inputs[card_id]
+            inputQ.setVisible(True)
+            inputQ.setFocus()
+        elif type == "a":
+            inputA = self.renameA_inputs[card_id]
+            inputA.setVisible(True)
+            inputA.setFocus()
+
+
+    def confirm_rename(self,card_id,type):
+        if type == "q":
+            inputQ = self.rename_inputs[card_id]
+            renamed = inputQ.text()
+            if not renamed:
+                return apology("Error missing Q")
+
+            db.execute("UPDATE flashcards SET question = ? WHERE id = ?", (renamed, card_id))
+            connection.commit()
+            inputQ.setVisible(False)
+            inputQ.clear()
+
+        elif type == "a":
+            inputA = self.renameA_inputs[card_id]
+            renamed = inputA.text()
+            if not renamed:
+                return apology("Error missing A")
+
+            db.execute("UPDATE flashcards SET answer = ? WHERE id = ?", (renamed, card_id))
+            connection.commit()    
+            inputA.setVisible(False)
+            inputA.clear()
+
+
+        self.refresh_decks()
+
+
+    def create_deck(self):
+        print("Create Deck button clicked")
+        self.stack.setCurrentIndex(2) 
+
+
+    def delete_deck(self, card_id):
+        db.execute("DELETE FROM flashcards WHERE id = ?",(card_id,))
+        connection.commit()
+        self.refresh_decks()
+
+
+    def set_deck_id(self, deck_id): #gets deck_id and initialises it to a variable in class
+        self.deck_id = deck_id
+        self.refresh_decks()
+
 class Window(QWidget):
     def __init__(self):
         super().__init__()
@@ -400,12 +567,14 @@ class Window(QWidget):
         self.create_deck_page = CreateDeckPage(self.stack, self)
         self.deck_handler_page = DeckHandler(self.stack, self)
         self.create_card_page = CreateCardPage(self.stack, self)
+        self.edit_cards_page = EditCards(self.stack, self)
 
         self.stack.addWidget(self.login_page)     
         self.stack.addWidget(self.main_app_page)   
         self.stack.addWidget(self.create_deck_page)
         self.stack.addWidget(self.deck_handler_page)
         self.stack.addWidget(self.create_card_page)
+        self.stack.addWidget(self.edit_cards_page)
 
         self.stack.setCurrentIndex(0) 
 
