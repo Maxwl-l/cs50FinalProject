@@ -80,6 +80,7 @@ class MainAppPage(QWidget):
         super().__init__()
         self.stack = stack
         self.window = window
+        self.rename_inputs = {}
 
         layout = QGridLayout()
         self.setLayout(layout)
@@ -115,19 +116,53 @@ class MainAppPage(QWidget):
             # deletes later as not to potential mess up the deletion process
             if widget is not None:
                 widget.deleteLater()
-                
+
+
         deck = db.execute("SELECT * FROM decks").fetchall()
 
         increment = 0
+        self.rename_inputs = {}
         
         for row in deck:
+            deck_id = row[0]
+
             button = QPushButton(row[2])
             delete = QPushButton("Delete Deck")
+            rename = QPushButton("Rename")
+            rename_input = QLineEdit()
+            rename_input.setVisible(False)
+            self.layout().addWidget(rename_input, increment + 3, 3, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
             self.layout().addWidget(button, increment + 3, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-            self.layout().addWidget(delete, increment + 3, 2, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-            button.clicked.connect(lambda checked=False, deck_id=row[0]: self.flashcard_page(deck_id))
-            delete.clicked.connect(lambda checked=False, deck_id=row[0]: self.delete_deck(deck_id))
+            self.layout().addWidget(delete, increment + 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.layout().addWidget(rename, increment + 3, 2, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+
+            self.rename_inputs[deck_id] = rename_input
+
+            rename_input.returnPressed.connect(lambda deck_id=deck_id: self.confirm_rename(deck_id))
+            button.clicked.connect(lambda checked=False, deck_id=deck_id: self.flashcard_page(deck_id))
+            delete.clicked.connect(lambda checked=False, deck_id=deck_id: self.delete_deck(deck_id))
+            rename.clicked.connect(lambda checked=False, deck_id=deck_id: self.reveal_rename(deck_id))
             increment += 1
+
+
+    def reveal_rename(self, deck_id):
+        input = self.rename_inputs[deck_id] 
+        input.setVisible(True)
+        input.setFocus()
+
+
+    def confirm_rename(self,deck_id):
+        input = self.rename_inputs[deck_id]
+        renamed = input.text()
+        if not renamed:
+            return apology()
+
+        db.execute("UPDATE decks SET name = ? WHERE id = ?", (renamed, deck_id))
+        connection.commit()
+
+        input.setVisible(False)
+        input.clear()
+        self.refresh_decks()
 
 
     def create_deck(self):
@@ -174,6 +209,14 @@ class DeckHandler(QWidget):
         self.add_button.clicked.connect(self.add_card)
         layout.addWidget(self.add_button, 2, 0, 1, 2)
 
+        self.go_back = QPushButton("Return to Decks")
+        self.go_back.clicked.connect(self.back)
+        layout.addWidget(self.go_back, 3, 0, 1, 2)
+
+
+    def back(self, checked=False):
+        self.window.main_app_page.refresh_decks()
+        self.stack.setCurrentIndex(1) 
 
     def load_card(self, question, answer): #assings question and answer vars
         self.question = question
@@ -205,10 +248,12 @@ class DeckHandler(QWidget):
             self.cards.append((row[2], row[3])) #store q and as in list
  
         if self.cards: #if any cards
+            self.flip_button.setVisible(True)
             question, answer = self.cards[self.current_index] #sets pos cards = q and a as a tuple
             self.load_card(question, answer) #sends both to be loaded and displayed
         else:
             self.card_label.setText("No flashcards")
+            self.flip_button.setVisible(False)
 
 
     def next_card(self):
@@ -255,9 +300,17 @@ class CreateCardPage(QWidget):
         button1.clicked.connect(self.insert_card)
         layout.addWidget(button1, 3, 1)
 
+        button2 = QPushButton("Cancel")
+        button2.clicked.connect(self.cancel)
+        layout.addWidget(button2, 3, 2)
+
 
     def set_deck_id(self, deck_id): #gets deck_id and initialises it to a variable in class
         self.deck_id = deck_id
+
+
+    def cancel(self, checked=False):
+        self.stack.setCurrentIndex(3)
 
 
     def insert_card(self, checked=False):
@@ -295,14 +348,21 @@ class CreateDeckPage(QWidget):
 
         button1 = QPushButton("Create Deck")
         button1.clicked.connect(self.insert_deck)
-        layout.addWidget(button1, 3, 1)
+        layout.addWidget(button1, 1, 3)
+
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.cancel)
+        layout.addWidget(cancel, 2, 3)
+
+
+    def cancel(self, checked=False):
+        self.stack.setCurrentIndex(1)
 
 
     def insert_deck(self):
         name = self.deckname.text()
         if not name:
-            print("Please fill in the deck name")
-            return apology()
+            return apology("Please fill in the deck name")
 
         db.execute("INSERT INTO decks (user_id, name) VALUES (?, ?)", (self.window.current_user_id, name))
         connection.commit()
