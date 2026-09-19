@@ -37,8 +37,6 @@ cursor.execute("""
 connection.commit()
 connection.close()
 
-def apology(string):
-    print(string)
 
 
     

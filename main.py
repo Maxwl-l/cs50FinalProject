@@ -1,12 +1,10 @@
 import sys
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QPushButton, QGridLayout, QLabel, QLineEdit, QStackedWidget, QScrollArea, QVBoxLayout,
+    QApplication, QWidget, QPushButton, QGridLayout, QLabel, QLineEdit, QStackedWidget, QScrollArea, QVBoxLayout, QMessageBox,
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 import sqlite3
-
-from setup_db import apology
 
 connection = sqlite3.connect("revision.db")
 db = connection.cursor()
@@ -39,7 +37,7 @@ class LoginPage(QWidget):
         self.input2.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.input2, 2, 1, 1, 2)
 
-        button1 = QPushButton("Register")
+        button1 = QPushButton("Create Account")
         button1.clicked.connect(self.register)
         layout.addWidget(button1, 3, 1)
 
@@ -52,27 +50,77 @@ class LoginPage(QWidget):
         password = self.input2.text()
         user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         if not username or not password:
-            return apology("Missing name/password")
+            QMessageBox.warning(self, "Error", "Missing Field")
+            return
 
         if user and check_password_hash(user[2], password):
-            print("Login successful")
             self.window.current_user_id = user[0]
+            self.window.main_app_page.refresh_decks()
             self.stack.setCurrentIndex(1)   
         else:
-            print("Login failed")
-            return apology()
+            QMessageBox.warning(self, "Error", "Login Failed")
+            return
 
     def register(self):
-        username = self.input1.text()
-        password = self.input2.text()
-        hash = generate_password_hash(password, method="scrypt", salt_length=16)
-        if not username or not password:
-            print("Please fill in all fields")
-            return apology()
+        self.stack.setCurrentIndex(6)  
 
-        db.execute("INSERT INTO users (username, hash) VALUES (?, ?)", (username, hash))
-        connection.commit()
-        print("User registered successfully")
+
+class CreateAccount(QWidget):
+    def __init__(self, stack, window):
+        super().__init__()
+        self.stack = stack
+        self.window = window
+
+        layout = QGridLayout()
+        layout.setContentsMargins(30, 30, 30, 30)
+        layout.setSpacing(20)
+        self.setLayout(layout)
+
+        title = QLabel("Register Form")
+        layout.addWidget(title, 0, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        user = QLabel("Username:")
+        layout.addWidget(user, 1, 0)
+
+        password = QLabel("Password:")
+        layout.addWidget(password, 2, 0)
+
+        confirm = QLabel("Confirm Password")
+        layout.addWidget(confirm, 3, 0)
+
+        self.input1 = QLineEdit()
+        layout.addWidget(self.input1, 1, 1, 1, 2)
+
+        self.input2 = QLineEdit()
+        self.input2.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(self.input2, 2, 1, 1, 2)
+
+        self.input3 = QLineEdit()
+        self.input3.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(self.input3, 3, 1, 1, 2)
+
+        button1 = QPushButton("Create Account")
+        button1.clicked.connect(self.register)
+        layout.addWidget(button1, 4, 1)
+
+    def register(self):
+        name = self.input1.text()
+        password = self.input2.text()
+        confirm = self.input3.text()
+
+        if not name or not password or not confirm:
+            QMessageBox.warning(self, "Error", "Missing Field")
+            return
+
+        if confirm != password:
+            QMessageBox.warning(self, "Error", "Passwords do not match")
+            return
+
+        hash = generate_password_hash(password, method="scrypt", salt_length=16)
+
+        db.execute("INSERT INTO users (username, hash) VALUES (?, ?)", (name, hash))
+        
+        self.stack.setCurrentIndex(0) 
 
 
 class MainAppPage(QWidget):
@@ -87,6 +135,10 @@ class MainAppPage(QWidget):
 
         title = QLabel("Main Application Page")
         layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        log_out_button = QPushButton("Log Out")
+        layout.addWidget(log_out_button, alignment=Qt.AlignmentFlag.AlignCenter)
+        log_out_button.clicked.connect(self.log_out)
 
         create_deck_button = QPushButton("Create Deck")
         layout.addWidget(create_deck_button, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -128,7 +180,7 @@ class MainAppPage(QWidget):
                 widget.deleteLater()
 
 
-        deck = db.execute("SELECT * FROM decks").fetchall()
+        deck = db.execute("SELECT * FROM decks WHERE user_id = ?", (self.window.current_user_id,)).fetchall()
 
         increment = 0
         self.rename_inputs = {}
@@ -155,6 +207,9 @@ class MainAppPage(QWidget):
             increment += 1
 
 
+    def log_out(self):
+        self.stack.setCurrentIndex(0) 
+
     def reveal_rename(self, deck_id):
         input = self.rename_inputs[deck_id] 
         input.setVisible(True)
@@ -165,7 +220,8 @@ class MainAppPage(QWidget):
         input = self.rename_inputs[deck_id]
         renamed = input.text()
         if not renamed:
-            return apology()
+            QMessageBox.warning(self, "Error", "Missing Field")
+            return
 
         db.execute("UPDATE decks SET name = ? WHERE id = ?", (renamed, deck_id))
         connection.commit()
@@ -176,7 +232,6 @@ class MainAppPage(QWidget):
 
 
     def create_deck(self):
-        print("Create Deck button clicked")
         self.stack.setCurrentIndex(2) 
 
 
@@ -282,7 +337,6 @@ class DeckHandler(QWidget):
         self.current_index = (self.current_index + 1) % len(self.cards)
         question, answer = self.cards[self.current_index]
         self.load_card(question, answer)
-        print("Next card")
 
 
     def add_card(self, checked=False):
@@ -336,12 +390,13 @@ class CreateCardPage(QWidget):
         question = self.question.text()
         answer = self.answer.text()
         if not answer or not question:
-            print("Please fill in all boxes")
-            return apology()
+            QMessageBox.warning(self, "Error", "Missing Field")
+            return
 
         db.execute("INSERT INTO flashcards (deck_id, question, answer) VALUES (?, ?, ?)", (self.deck_id, question, answer))
         connection.commit()
-        print("Card created successfully")
+        self.question.clear()
+        self.answer.clear()
 
         self.window.deck_handler_page.start_deck(self.deck_id)
         self.stack.setCurrentIndex(3)
@@ -381,11 +436,12 @@ class CreateDeckPage(QWidget):
     def insert_deck(self):
         name = self.deckname.text()
         if not name:
-            return apology("Please fill in the deck name")
+            QMessageBox.warning(self, "Error", "Missing Field")
+            return
 
         db.execute("INSERT INTO decks (user_id, name) VALUES (?, ?)", (self.window.current_user_id, name))
         connection.commit()
-        print("Deck created successfully")
+        self.deckname.clear()
 
         self.window.main_app_page.refresh_decks()
         self.stack.setCurrentIndex(1)
@@ -451,7 +507,6 @@ class EditCards(QWidget):
 
 
         cards = db.execute("SELECT * FROM flashcards WHERE deck_id = ?", (self.deck_id,)).fetchall()
-        print(f"self.deck_id = {self.deck_id}, found {len(cards)} cards: {cards}")
 
         increment = 0
         self.rename_inputs = {}
@@ -512,7 +567,8 @@ class EditCards(QWidget):
             inputQ = self.rename_inputs[card_id]
             renamed = inputQ.text()
             if not renamed:
-                return apology("Error missing Q")
+                QMessageBox.warning(self, "Error", "Missing Field")
+                return
 
             db.execute("UPDATE flashcards SET question = ? WHERE id = ?", (renamed, card_id))
             connection.commit()
@@ -523,7 +579,8 @@ class EditCards(QWidget):
             inputA = self.renameA_inputs[card_id]
             renamed = inputA.text()
             if not renamed:
-                return apology("Error missing A")
+                QMessageBox.warning(self, "Error", "Missing Field")
+                return
 
             db.execute("UPDATE flashcards SET answer = ? WHERE id = ?", (renamed, card_id))
             connection.commit()    
@@ -535,7 +592,6 @@ class EditCards(QWidget):
 
 
     def create_deck(self):
-        print("Create Deck button clicked")
         self.stack.setCurrentIndex(2) 
 
 
@@ -568,6 +624,7 @@ class Window(QWidget):
         self.deck_handler_page = DeckHandler(self.stack, self)
         self.create_card_page = CreateCardPage(self.stack, self)
         self.edit_cards_page = EditCards(self.stack, self)
+        self.create_account_page = CreateAccount(self.stack, self)
 
         self.stack.addWidget(self.login_page)     
         self.stack.addWidget(self.main_app_page)   
@@ -575,6 +632,7 @@ class Window(QWidget):
         self.stack.addWidget(self.deck_handler_page)
         self.stack.addWidget(self.create_card_page)
         self.stack.addWidget(self.edit_cards_page)
+        self.stack.addWidget(self.create_account_page)
 
         self.stack.setCurrentIndex(0) 
 
