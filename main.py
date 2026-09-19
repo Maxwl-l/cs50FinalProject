@@ -52,8 +52,7 @@ class LoginPage(QWidget):
         password = self.input2.text()
         user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
         if not username or not password:
-            print("Please fill in all fields")
-            return apology()
+            return apology("Missing name/password")
 
         if user and check_password_hash(user[2], password):
             print("Login successful")
@@ -86,15 +85,15 @@ class MainAppPage(QWidget):
         self.setLayout(layout)
 
         title = QLabel("Main Application Page")
-        layout.addWidget(title, 0, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title, 0, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
 
         create_deck_button = QPushButton("Create Deck")
-        layout.addWidget(create_deck_button, 1, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(create_deck_button, 1, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
         create_deck_button.clicked.connect(self.create_deck)
 
 
         decks = QLabel("Decks:")
-        layout.addWidget(decks, 2, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(decks, 2, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
 
         self.refresh_decks()
 
@@ -123,10 +122,12 @@ class MainAppPage(QWidget):
         
         for row in deck:
             button = QPushButton(row[2])
-            self.layout().addWidget(button, increment + 3, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
-            button.clicked.connect(lambda checked=False, deck_id=row[0]: self.flashcard_page(deck_id)) #not implemented yet
+            delete = QPushButton("Delete Deck")
+            self.layout().addWidget(button, increment + 3, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.layout().addWidget(delete, increment + 3, 2, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+            button.clicked.connect(lambda checked=False, deck_id=row[0]: self.flashcard_page(deck_id))
+            delete.clicked.connect(lambda checked=False, deck_id=row[0]: self.delete_deck(deck_id))
             increment += 1
-
 
 
     def create_deck(self):
@@ -135,8 +136,14 @@ class MainAppPage(QWidget):
 
 
     def flashcard_page(self, deck_id):
-            self.window.deck_handler_page.set_deck_id(deck_id)
-            self.stack.setCurrentIndex(3)
+        self.window.deck_handler_page.set_deck_id(deck_id)
+        self.stack.setCurrentIndex(3)
+
+
+    def delete_deck(self, deck_id):
+        db.execute("DELETE FROM decks WHERE id = ?",(deck_id,))
+        connection.commit()
+        self.refresh_decks()
 
 
 class DeckHandler(QWidget):
@@ -148,6 +155,7 @@ class DeckHandler(QWidget):
         self.cards = []
         self.current_index = 0
 
+
         layout = QGridLayout()
         self.setLayout(layout)
 
@@ -156,7 +164,15 @@ class DeckHandler(QWidget):
 
         self.flip_button = QPushButton("Show Answer")
         self.flip_button.clicked.connect(self.toggle_answer)
-        layout.addWidget(self.flip_button, 1, 0, 1, 2)
+        layout.addWidget(self.flip_button, 1, 0, 1, 1)
+
+        self.next_button = QPushButton("Next Card")
+        self.next_button.clicked.connect(self.next_card)
+        layout.addWidget(self.next_button, 1, 1, 1, 1)
+
+        self.add_button = QPushButton("Add Card")
+        self.add_button.clicked.connect(self.add_card)
+        layout.addWidget(self.add_button, 2, 0, 1, 2)
 
 
     def load_card(self, question, answer): #assings question and answer vars
@@ -181,16 +197,82 @@ class DeckHandler(QWidget):
         #self.refresh_decks()
 
     def start_deck(self, deck_id): #Gets q and as from database
+        self.cards = []   # handles stale data
+        self.current_index = 0  
         flashcards = db.execute("SELECT * FROM flashcards WHERE deck_id = ?", (deck_id,)).fetchall()
 
         for row in flashcards:
             self.cards.append((row[2], row[3])) #store q and as in list
  
         if self.cards: #if any cards
-            question, answer = self.cards[0] #sets pos cards = q and a as a tuple
+            question, answer = self.cards[self.current_index] #sets pos cards = q and a as a tuple
             self.load_card(question, answer) #sends both to be loaded and displayed
         else:
             self.card_label.setText("No flashcards")
+
+
+    def next_card(self):
+        if not self.cards:
+            return
+        
+        self.current_index = (self.current_index + 1) % len(self.cards)
+        question, answer = self.cards[self.current_index]
+        self.load_card(question, answer)
+        print("Next card")
+
+
+    def add_card(self, checked=False):
+        self.window.create_card_page.set_deck_id(self.deck_id)
+        self.stack.setCurrentIndex(4)
+
+
+class CreateCardPage(QWidget):
+    def __init__(self, stack, window):
+        super().__init__()
+        self.stack = stack
+        self.window = window
+        self.deck_id = None
+
+        layout = QGridLayout()
+        self.setLayout(layout)
+
+        title = QLabel("Card Creation Form")
+        layout.addWidget(title, 0, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        question = QLabel("Question:")
+        layout.addWidget(question, 1, 0)
+
+        self.question = QLineEdit()
+        layout.addWidget(self.question, 1, 1, 1, 1)
+
+        answer = QLabel("Answer:")
+        layout.addWidget(answer, 2, 0)
+
+        self.answer = QLineEdit()
+        layout.addWidget(self.answer, 2, 1, 1, 1)
+
+        button1 = QPushButton("Create Card")
+        button1.clicked.connect(self.insert_card)
+        layout.addWidget(button1, 3, 1)
+
+
+    def set_deck_id(self, deck_id): #gets deck_id and initialises it to a variable in class
+        self.deck_id = deck_id
+
+
+    def insert_card(self, checked=False):
+        question = self.question.text()
+        answer = self.answer.text()
+        if not answer or not question:
+            print("Please fill in all boxes")
+            return apology()
+
+        db.execute("INSERT INTO flashcards (deck_id, question, answer) VALUES (?, ?, ?)", (self.deck_id, question, answer))
+        connection.commit()
+        print("Card created successfully")
+
+        self.window.deck_handler_page.start_deck(self.deck_id)
+        self.stack.setCurrentIndex(3)
 
 
 class CreateDeckPage(QWidget):
@@ -247,11 +329,13 @@ class Window(QWidget):
         self.main_app_page = MainAppPage(self.stack, self)
         self.create_deck_page = CreateDeckPage(self.stack, self)
         self.deck_handler_page = DeckHandler(self.stack, self)
+        self.create_card_page = CreateCardPage(self.stack, self)
 
         self.stack.addWidget(self.login_page)     
         self.stack.addWidget(self.main_app_page)   
         self.stack.addWidget(self.create_deck_page)
         self.stack.addWidget(self.deck_handler_page)
+        self.stack.addWidget(self.create_card_page)
 
         self.stack.setCurrentIndex(0) 
 

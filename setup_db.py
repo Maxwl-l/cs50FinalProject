@@ -32,27 +32,13 @@ cursor.execute("""
     )
 """)
 
-sample_cards = [
-    ("What is the capital of France?", "Paris"),
-    ("What is the powerhouse of the cell?", "Mitochondria"),
-    ("What data structure works on a First-In-First-Out basis?", "Queue"),
-    ("What HTTP method is used to update an existing resource?", "PUT"),
-    ("What does SQL stand for?", "Structured Query Language"),
-]
 
-deck_id = 1  # change this to whatever real deck id you want to seed
-
-for question, answer in sample_cards:
-    cursor.execute(
-        "INSERT INTO flashcards (deck_id, question, answer) VALUES (?, ?, ?)",
-        (deck_id, question, answer)
-    )
 
 connection.commit()
 connection.close()
 
-def apology():
-    print("Sorry, this is a test program. No real functionality is implemented.")
+def apology(string):
+    print(string)
 
 
     
