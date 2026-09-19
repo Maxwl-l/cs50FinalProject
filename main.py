@@ -1,7 +1,7 @@
 import sys
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QPushButton, QGridLayout, QLabel, QLineEdit, QStackedWidget,
+    QApplication, QWidget, QPushButton, QGridLayout, QLabel, QLineEdit, QStackedWidget, QScrollArea, QVBoxLayout,
 )
 from werkzeug.security import check_password_hash, generate_password_hash
 import sqlite3
@@ -82,32 +82,42 @@ class MainAppPage(QWidget):
         self.window = window
         self.rename_inputs = {}
 
-        layout = QGridLayout()
+        layout = QVBoxLayout()
         self.setLayout(layout)
 
         title = QLabel("Main Application Page")
-        layout.addWidget(title, 0, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title, alignment=Qt.AlignmentFlag.AlignCenter)
 
         create_deck_button = QPushButton("Create Deck")
-        layout.addWidget(create_deck_button, 1, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(create_deck_button, alignment=Qt.AlignmentFlag.AlignCenter)
         create_deck_button.clicked.connect(self.create_deck)
 
 
         decks = QLabel("Decks:")
-        layout.addWidget(decks, 2, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(decks, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        self.scroll_content = QWidget()
+        self.deck_layout = QGridLayout()
+        self.scroll_content.setLayout(self.deck_layout)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidget(self.scroll_content)
+        scroll_area.setWidgetResizable(True) 
+
+        layout.addWidget(scroll_area)
 
         self.refresh_decks()
 
 
     def refresh_decks(self):
         # Start from the end of the layout and work backwards since removing items while iterating forward can mess up indexes
-        for i in range(self.layout().count() - 1, 2, -1):
+        for i in range(self.deck_layout.count() - 1, -1, -1):
             #-1 to get to the last index
             #until greater than 2
             #increment(decrement) -1
             
             # Get the widget item at this row,column position
-            item = self.layout().takeAt(i)
+            item = self.deck_layout.takeAt(i)
 
             # Get the actual widget inside that layout item
             widget = item.widget()
@@ -131,10 +141,10 @@ class MainAppPage(QWidget):
             rename = QPushButton("Rename")
             rename_input = QLineEdit()
             rename_input.setVisible(False)
-            self.layout().addWidget(rename_input, increment + 3, 3, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-            self.layout().addWidget(button, increment + 3, 1, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-            self.layout().addWidget(delete, increment + 3, 0, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
-            self.layout().addWidget(rename, increment + 3, 2, 1, 2, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.deck_layout.addWidget(rename_input, increment, 3, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.deck_layout.addWidget(button, increment, 1, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.deck_layout.addWidget(delete, increment, 0, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.deck_layout.addWidget(rename, increment, 2, 1, 1, alignment=Qt.AlignmentFlag.AlignCenter)
 
             self.rename_inputs[deck_id] = rename_input
 
