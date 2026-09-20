@@ -413,7 +413,6 @@ class CreateCardPage(QWidget):
 
 
     def cancel(self, checked=False):
-        self.deckname.clear()
         self.stack.setCurrentIndex(3)
 
 
