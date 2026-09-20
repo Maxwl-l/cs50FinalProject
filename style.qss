@@ -28,24 +28,24 @@ QPushButton:pressed {
     background-color: #585b70;
 }
 
-QPushButton {
+QPushButton#dangerButton {
     background-color: #45303a;
     border: 1px solid #f38ba8;
     color: #f38ba8;
 }
 
-QPushButton:hover {
+QPushButton:hover#dangerButton {
     background-color: #55303a;
 }
 
-QPushButton {
+QPushButton#primaryButton{
     background-color: #89b4fa;
     color: #1e1e2e;
     border: none;
     font-weight: 600;
 }
 
-QPushButton:hover {
+QPushButton#primaryButton:hover {
     background-color: #a6c8ff;
 }
 

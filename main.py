@@ -59,7 +59,7 @@ class LoginPage(QWidget):
             self.window.main_app_page.refresh_decks()
             self.stack.setCurrentIndex(1)   
         else:
-            QMessageBox.warning(self, "Error", "Login Failed")
+            QMessageBox.warning(self, "Error", "Invalid User")
             return
 
         self.input1.clear()
@@ -133,6 +133,13 @@ class CreateAccount(QWidget):
         if confirm != password:
             QMessageBox.warning(self, "Error", "Passwords do not match")
             return
+
+        check = db.execute("SELECT username FROM users WHERE username = ?", (name,)).fetchall()
+
+        if check:
+            QMessageBox.warning(self, "Error", "Name Already Exists")
+            return
+
 
         hash = generate_password_hash(password, method="scrypt", salt_length=16)
 
@@ -541,7 +548,7 @@ class EditCards(QWidget):
 
             question = QPushButton(row[2])
             answer = QPushButton(row[3])
-            delete = QPushButton("Delete Deck")
+            delete = QPushButton("Delete Card")
             delete.setObjectName("dangerButton")
             rename = QPushButton("Rename")
             rename_input = QLineEdit()
