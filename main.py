@@ -633,7 +633,7 @@ class EditCards(QWidget):
 class Window(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("My App")
+        self.setWindowTitle("MemoryStack")
         self.setFixedSize(900, 600) 
         self.setMinimumSize(600, 400)
 
