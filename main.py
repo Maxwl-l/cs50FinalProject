@@ -42,6 +42,7 @@ class LoginPage(QWidget):
         layout.addWidget(button1, 3, 1)
 
         button2 = QPushButton("Login")
+        button2.setObjectName("primaryButton")  
         button2.clicked.connect(self.login)
         layout.addWidget(button2, 3, 2)
 
@@ -61,6 +62,10 @@ class LoginPage(QWidget):
             QMessageBox.warning(self, "Error", "Login Failed")
             return
 
+        self.input1.clear()
+        self.input2.clear()
+
+
     def register(self):
         self.stack.setCurrentIndex(6)  
 
@@ -78,6 +83,10 @@ class CreateAccount(QWidget):
 
         title = QLabel("Register Form")
         layout.addWidget(title, 0, 0, 1, 3, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        cancel_button = QPushButton("Cancel")
+        layout.addWidget(cancel_button, 4, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+        cancel_button.clicked.connect(self.cancel)
 
         user = QLabel("Username:")
         layout.addWidget(user, 1, 0)
@@ -101,7 +110,16 @@ class CreateAccount(QWidget):
 
         button1 = QPushButton("Create Account")
         button1.clicked.connect(self.register)
+        button1.setObjectName("primaryButton")  
         layout.addWidget(button1, 4, 1)
+
+
+    def cancel(self):
+        self.input1.clear()
+        self.input2.clear()
+        self.input3.clear()
+        self.stack.setCurrentIndex(0) 
+
 
     def register(self):
         name = self.input1.text()
@@ -119,7 +137,11 @@ class CreateAccount(QWidget):
         hash = generate_password_hash(password, method="scrypt", salt_length=16)
 
         db.execute("INSERT INTO users (username, hash) VALUES (?, ?)", (name, hash))
-        
+
+        self.input1.clear()
+        self.input2.clear()
+        self.input3.clear()
+
         self.stack.setCurrentIndex(0) 
 
 
@@ -190,6 +212,7 @@ class MainAppPage(QWidget):
 
             button = QPushButton(row[2])
             delete = QPushButton("Delete Deck")
+            delete.setObjectName("dangerButton")
             rename = QPushButton("Rename")
             rename_input = QLineEdit()
             rename_input.setVisible(False)
@@ -383,6 +406,7 @@ class CreateCardPage(QWidget):
 
 
     def cancel(self, checked=False):
+        self.deckname.clear()
         self.stack.setCurrentIndex(3)
 
 
@@ -518,6 +542,7 @@ class EditCards(QWidget):
             question = QPushButton(row[2])
             answer = QPushButton(row[3])
             delete = QPushButton("Delete Deck")
+            delete.setObjectName("dangerButton")
             rename = QPushButton("Rename")
             rename_input = QLineEdit()
             renameA = QPushButton("Rename")
@@ -609,6 +634,8 @@ class Window(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("My App")
+        self.setFixedSize(900, 600) 
+        self.setMinimumSize(600, 400)
 
         self.current_user_id = None
 
@@ -639,6 +666,10 @@ class Window(QWidget):
 
 
 app = QApplication(sys.argv)
+
+with open("style.qss", "r") as f:
+    app.setStyleSheet(f.read())
+
 window = Window()
 window.show()
 app.exec()
